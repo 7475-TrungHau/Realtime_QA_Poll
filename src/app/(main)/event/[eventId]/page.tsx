@@ -1,4 +1,3 @@
-// src/app/(main)/event/[eventId]/page.tsx
 'use client';
 
 import { useState, useEffect, use } from 'react';
@@ -6,39 +5,57 @@ import { client } from '@/lib/amplify-client';
 import { getEvent, createQuestion, upvoteQuestion, onQuestionUpdated } from '@/lib/graphql';
 import { useGuestUser } from '@/hooks/useGuestUser';
 import type { Observable } from 'zen-observable-ts';
+import { getCurrentUser } from 'aws-amplify/auth';
 
 
-// const client = generateClient(); // <-- CÚ PHÁP MỚI
-
-// Định nghĩa các kiểu dữ liệu
 interface Author { id: string; name: string; }
 interface Question { id: string; content: string; author: Author; upvotes: number; createdAt: string; isUpvotedByMe?: boolean; }
 interface EventData { id: string; name: string; questions: Question[]; }
-
-// Định nghĩa kiểu cho dữ liệu trả về từ subscription
-interface SubscriptionEventData {
-  value: { data: { onQuestionUpdated: Question } }
-}
+interface SubscriptionEventData { value: { data: { onQuestionUpdated: Question } } }
 
 export default function EventQAPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
   const { guestUser, setGuestName } = useGuestUser();
+  const [authUser, setAuthUser] = useState<{ id: string, name: string } | null>(null);
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [newQuestionContent, setNewQuestionContent] = useState('');
   const [userName, setUserName] = useState('');
   const [isNameSet, setIsNameSet] = useState(false);
 
-  // Fetch dữ liệu ban đầu
+  const [votedQuestionIds, setVotedQuestionIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchAuthUser = async () => {
+      try {
+        const { userId, username } = await getCurrentUser();
+        setAuthUser({ id: userId, name: username });
+      } catch (error) {
+        setAuthUser(null);
+      }
+    };
+    fetchAuthUser();
+  }, []);
+
   useEffect(() => {
     const fetchEventData = async () => {
       if (!guestUser) return;
       try {
-        const result: any = await client.graphql({ // <-- Dùng client
+        const result: any = await client.graphql({
           query: getEvent,
-          variables: { id: eventId, userId: guestUser.id },
+          variables: { id: eventId, userId: guestUser.id }
         });
-        setEventData(result.data.getEvent);
+        const eventData = result.data.getEvent;
+        setEventData(eventData);
+
+        if (eventData?.questions) {
+          const votedIds: Set<string> = new Set(
+            eventData.questions
+              .filter((q: Question) => q.isUpvotedByMe)
+              .map((q: Question) => q.id)
+          );
+          setVotedQuestionIds(votedIds);
+        }
       } catch (error) {
         console.error("Error fetching event data:", error);
       } finally {
@@ -48,58 +65,56 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
     fetchEventData();
   }, [eventId, guestUser]);
 
-
   useEffect(() => {
     if (!eventId) return;
 
-    console.log(`Setting up subscription for event: ${eventId}`);
+    console.log(`Attempting to set up subscription for event: ${eventId}`);
 
-    const graphqlOperation = client.graphql({
-      query: onQuestionUpdated,
-      variables: { eventId }
-    });
+    const graphqlOperation = client.graphql({ query: onQuestionUpdated, variables: { eventId } });
 
     const subscription = (graphqlOperation as unknown as Observable<SubscriptionEventData>).subscribe({
-      next: ({ value }) => {
-        const updatedQuestion = value.data.onQuestionUpdated;
-        if (!updatedQuestion) {
-          console.log("Received an empty update.");
-          return;
-        }
+      next: (data) => {
+        console.log('>>> Real-time data received:', JSON.stringify(data, null, 2));
 
-        console.log('Real-time update received:', updatedQuestion);
+        const updatedQuestion = data.value.data.onQuestionUpdated;
+        if (!updatedQuestion) return;
 
-        // Dùng callback form của setState để đảm bảo luôn nhận được state mới nhất
-        setEventData(currentEventData => {
-          // Nếu state hiện tại là null, không làm gì cả
-          if (!currentEventData) {
-            return null;
-          }
-
-          const newQuestions = [...currentEventData.questions];
+        setEventData(currentData => {
+          if (!currentData) return null;
+          let newQuestions = [...currentData.questions];
           const existingIndex = newQuestions.findIndex(q => q.id === updatedQuestion.id);
 
           if (existingIndex > -1) {
-            // Cập nhật câu hỏi đã có
-            console.log(`Updating existing question ID: ${updatedQuestion.id} with upvotes: ${updatedQuestion.upvotes}`);
             newQuestions[existingIndex] = updatedQuestion;
           } else {
-            // Thêm câu hỏi mới
-            console.log(`Adding new question ID: ${updatedQuestion.id}`);
             newQuestions.unshift(updatedQuestion);
           }
-
-          return { ...currentEventData, questions: newQuestions };
+          return { ...currentData, questions: newQuestions };
         });
+
+
+        if (guestUser && updatedQuestion.isUpvotedByMe !== undefined) {
+          setVotedQuestionIds(currentVotedIds => {
+            const newVotedIds = new Set(currentVotedIds);
+            if (updatedQuestion.isUpvotedByMe) {
+              newVotedIds.add(updatedQuestion.id);
+            } else {
+              newVotedIds.delete(updatedQuestion.id);
+            }
+            return newVotedIds;
+          });
+        }
       },
-      error: (err: any) => console.error("Subscription error:", err)
+      error: (error) => console.error('>>> SUBSCRIPTION ERROR:', JSON.stringify(error, null, 2)),
+      complete: () => console.log('>>> Subscription complete.'),
     });
 
     return () => {
       console.log(`Cleaning up subscription for event: ${eventId}`);
       subscription.unsubscribe();
     };
-  }, [eventId]);
+  }, [eventId, guestUser]);
+
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,46 +122,107 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
       setGuestName(userName.trim());
       setIsNameSet(true);
     }
-  }
+  };
 
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuestionContent.trim() || !guestUser?.name) return;
-    const optimisticQuestion: Question = {
-      id: 'temp-' + Date.now(),
-      content: newQuestionContent,
-      author: { id: guestUser.id, name: guestUser.name },
-      upvotes: 0,
-      createdAt: new Date().toISOString(),
-    };
-    // Cập nhật giao diện trước để tạo cảm giác nhanh
-    setEventData(prev => prev ? { ...prev, questions: [optimisticQuestion, ...prev.questions] } : null);
-    setNewQuestionContent('');
+    const currentUser = authUser || guestUser;
+    if (!newQuestionContent.trim() || !currentUser?.name) return;
+
     try {
-      await client.graphql({
+      const result: any = await client.graphql({
         query: createQuestion,
-        variables: { input: { eventId, content: newQuestionContent, authorId: guestUser.id, authorName: guestUser.name } }
+        variables: { input: { eventId, content: newQuestionContent, authorId: currentUser.id, authorName: currentUser.name } }
       });
+
+
+      const newQuestion = result.data.createQuestion;
+      if (newQuestion) {
+        setEventData(currentData => {
+          if (!currentData) return null;
+          const newQuestions = [newQuestion, ...currentData.questions];
+          return { ...currentData, questions: newQuestions };
+        });
+      }
+
+      setNewQuestionContent('');
     } catch (error) {
       console.error("Error creating question:", error);
-      // Nếu lỗi, xóa câu hỏi tạm
-      setEventData(prev => prev ? { ...prev, questions: prev.questions.filter(q => q.id !== optimisticQuestion.id) } : null);
     }
   };
 
   const handleUpvote = async (questionId: string) => {
-    if (!guestUser) return;
-    await client.graphql({
-      query: upvoteQuestion,
-      variables: { input: { eventId, questionId, userId: guestUser.id } }
+    const currentUser = authUser || guestUser;
+    if (!currentUser) return;
+
+    const hasVoted = votedQuestionIds.has(questionId);
+    const increment = hasVoted ? -1 : 1;
+
+    // Cập nhật UI ngay lập tức (optimistic update)
+    setEventData(currentData => {
+      if (!currentData) return null;
+
+      const newQuestions = currentData.questions.map(q =>
+        q.id === questionId ? {
+          ...q,
+          upvotes: q.upvotes + increment,
+          isUpvotedByMe: !hasVoted
+        } : q
+      );
+
+      return { ...currentData, questions: newQuestions };
     });
+
+    // Cập nhật trạng thái đã vote
+    setVotedQuestionIds(currentVotedIds => {
+      const newVotedIds = new Set(currentVotedIds);
+      if (hasVoted) {
+        newVotedIds.delete(questionId);
+      } else {
+        newVotedIds.add(questionId);
+      }
+      return newVotedIds;
+    });
+
+    // Gửi request lên backend
+    try {
+      await client.graphql({
+        query: upvoteQuestion,
+        variables: { input: { eventId, questionId, userId: currentUser.id } }
+      });
+    } catch (error) {
+      console.error("Error upvoting question:", error);
+
+      // Rollback nếu có lỗi
+      setEventData(currentData => {
+        if (!currentData) return null;
+        const newQuestions = currentData.questions.map(q =>
+          q.id === questionId ? {
+            ...q,
+            upvotes: q.upvotes - increment,
+            isUpvotedByMe: hasVoted
+          } : q
+        );
+        return { ...currentData, questions: newQuestions };
+      });
+
+      setVotedQuestionIds(currentVotedIds => {
+        const newVotedIds = new Set(currentVotedIds);
+        if (!hasVoted) {
+          newVotedIds.delete(questionId);
+        } else {
+          newVotedIds.add(questionId);
+        }
+        return newVotedIds;
+      });
+    }
   };
 
-  // UI Code giữ nguyên
+  // UI Code
   if (loading) return <div className="text-center p-10">Loading Event...</div>;
-  if (!guestUser) return <div className="text-center p-10">Initializing...</div>; // Chờ guestUser được tạo
-  if (!eventData) return <div className="text-center p-10">Event not found or failed to load.</div>;
-  if (!isNameSet && !guestUser.name) { /* Form nhập tên */
+  if (!guestUser) return <div className="text-center p-10">Initializing...</div>;
+  if (!eventData) return <div className="text-center p-10">Event not found.</div>;
+  if (!isNameSet && !guestUser.name) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <form onSubmit={handleNameSubmit} className="p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md space-y-4">
@@ -157,28 +233,37 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
       </div>
     )
   }
+
   return (
     <div className="container mx-auto p-4 max-w-3xl">
       <h1 className="text-3xl font-bold mb-2">{eventData.name}</h1>
-      {/* Form thêm câu hỏi */}
       <form onSubmit={handleAddQuestion} className="mb-6 p-4 border rounded-lg shadow-sm">
         <textarea className="w-full p-2 border rounded-md" rows={3} placeholder="Ask a question..." value={newQuestionContent} onChange={e => setNewQuestionContent(e.target.value)}></textarea>
         <button type="submit" className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md">Submit Question</button>
       </form>
-      {/* Danh sách câu hỏi */}
       <div className="space-y-4">
-        {[...eventData.questions].sort((a, b) => b.upvotes - a.upvotes).map(question => (
-          <div key={question.id} className="p-4 border rounded-lg shadow-sm">
-            <p className="font-semibold text-lg">{question.content}</p>
-            <div className="flex justify-between items-center mt-2">
-              <p className="text-sm text-gray-500">By: {question.author.name}</p>
-              <button onClick={() => handleUpvote(question.id)} className="flex items-center space-x-2 font-bold">
-                <span>👍</span>
-                <span>{question.upvotes}</span>
-              </button>
+        {/* Sắp xếp danh sách ngay trước khi render */}
+        {[...eventData.questions].sort((a, b) => b.upvotes - a.upvotes).map(question => {
+          const isVoted = votedQuestionIds.has(question.id);
+          return (
+            <div key={question.id} className="p-4 border rounded-lg shadow-sm">
+              <p className="font-semibold text-lg">{question.content}</p>
+              <div className="flex justify-between items-center mt-2">
+                <p className="text-sm text-gray-500">By: {question.author.name}</p>
+                <button
+                  onClick={() => handleUpvote(question.id)}
+                  className={`flex items-center space-x-2 font-bold transition-colors ${isVoted
+                    ? 'text-blue-600 bg-blue-50 px-3 py-1 rounded-md'
+                    : 'text-gray-600 hover:text-blue-600'
+                    }`}
+                >
+                  <span>{isVoted ? '👍' : '👍'}</span>
+                  <span>{question.upvotes}</span>
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

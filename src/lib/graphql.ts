@@ -10,11 +10,11 @@ export const createEvent = `
 `;
 
 export const createQuestion = `
-    mutation CreateQuestion ($input: CreateQuestionInput!){
-        CreateQuestion(input: $input){
+    mutation CreateQuestion($input: CreateQuestionInput!) {
+        CreateQuestion(input: $input) {
             id
             content
-            author{
+            author {
                 id
                 name
             }
@@ -24,12 +24,19 @@ export const createQuestion = `
     }
 `;
 
-export const upvoteQuestion = `
-    mutation UpvoteQuestion ($input: UpvoteQuestionInput!){
-        UpvoteQuestion(input: $input){
-            id
-        }
+export const upvoteQuestion = /* GraphQL */ `
+  mutation UpvoteQuestion($input: UpvoteQuestionInput!) {
+    UpvoteQuestion(input: $input) {
+      id
+      content
+      author {
+        id
+        name
+      }
+      upvotes
+      createdAt
     }
+  }
 `;
 
 export const getEvent = `
@@ -75,9 +82,10 @@ query ListEvents{
 `
 
 export const onQuestionUpdated = `
-  subscription OnQuestionUpdated($eventId: ID!) {
+  subscription onQuestionUpdated($eventId: ID!) {
     onQuestionUpdated(eventId: $eventId) {
       id
+      eventId
       content
       author {
         id
