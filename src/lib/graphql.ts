@@ -4,6 +4,7 @@ export const createEvent = `
             id
             name
             description
+            creatorId
             createdAt
         }
     }
@@ -44,6 +45,7 @@ export const getEvent = `
         getEvent(id: $id, userId: $userId){
             id
             name
+            creatorId
             description
             questions{
                 id
@@ -93,6 +95,48 @@ export const onQuestionUpdated = `
       }
       upvotes
       createdAt
+    }
+  }
+`;
+
+export const createPoll = `
+  mutation CreatePoll($input: CreatePollInput!) {
+    CreatePoll(input: $input) {
+      id
+      questionText
+      options {
+        text
+        votes
+      }
+      totalVotes
+    }
+  }
+`;
+
+export const submitPollVote = `
+  mutation SubmitPollVote($input: SubmitPollVoteInput!) {
+    SubmitPollVote(input: $input) {
+      id
+      questionText
+      options {
+        text
+        votes
+      }
+      totalVotes
+    }
+  }
+`;
+
+export const onPollUpdated = `
+  subscription OnPollUpdated($eventId: ID!) {
+    onPollUpdated(eventId: $eventId) {
+      id
+      questionText
+      options {
+        text
+        votes
+      }
+      totalVotes
     }
   }
 `;
