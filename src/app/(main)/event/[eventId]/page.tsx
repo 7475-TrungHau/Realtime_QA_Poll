@@ -13,7 +13,7 @@ interface Author { id: string; name: string; }
 interface Question { id: string; content: string; author: Author; upvotes: number; createdAt: string; isUpvotedByMe?: boolean; }
 interface PollOption { text: string; votes: number; }
 interface Poll { id: string; questionText: string; options: PollOption[]; totalVotes: number; myVote?: string | null; }
-interface EventData { id: string; name: string; questions: Question[]; polls: Poll[]; creatorId: string; }
+interface EventData { id: string; name: string; description?: string; questions: Question[]; polls: Poll[]; creatorId: string; }
 interface SubscriptionEventData<T> { value: { data: T } }
 interface AuthUser { id: string; username: string; }
 
@@ -241,7 +241,7 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
       </div>
     </div>
   );
-  
+
   if (!eventData) return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
       <div className="text-center">
@@ -278,13 +278,12 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
           <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex">
-              <button 
-                onClick={() => setActiveTab('qa')} 
-                className={`py-3 px-6 text-lg font-semibold rounded-lg transition-all ${
-                  activeTab === 'qa' 
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400' 
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
+              <button
+                onClick={() => setActiveTab('qa')}
+                className={`py-3 px-6 text-lg font-semibold rounded-lg transition-all ${activeTab === 'qa'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -294,13 +293,12 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                   <span className="bg-gray-200 dark:bg-gray-700 text-xs px-2 py-1 rounded-full">{eventData.questions.length}</span>
                 </div>
               </button>
-              <button 
-                onClick={() => setActiveTab('polls')} 
-                className={`py-3 px-6 text-lg font-semibold rounded-lg transition-all ${
-                  activeTab === 'polls' 
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400' 
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
+              <button
+                onClick={() => setActiveTab('polls')}
+                className={`py-3 px-6 text-lg font-semibold rounded-lg transition-all ${activeTab === 'polls'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -311,11 +309,11 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                 </div>
               </button>
             </div>
-            
+
             {/* Create Poll Button */}
             {authUser && activeTab === 'polls' && (
-              <button 
-                onClick={() => setShowPollModal(true)} 
+              <button
+                onClick={() => setShowPollModal(true)}
                 className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -340,15 +338,15 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <textarea 
-                        className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none" 
-                        rows={3} 
-                        placeholder="Ask a question about this event..." 
-                        value={newQuestionContent} 
+                      <textarea
+                        className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none"
+                        rows={3}
+                        placeholder="Ask a question about this event..."
+                        value={newQuestionContent}
                         onChange={e => setNewQuestionContent(e.target.value)}
                       />
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         disabled={!newQuestionContent.trim()}
                         className="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
                       >
@@ -378,11 +376,10 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                           </div>
                           <button
                             onClick={() => handleUpvote(question.id)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                              isVoted
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isVoted
+                              ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              }`}
                           >
                             <svg className="w-5 h-5" fill={isVoted ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
@@ -432,7 +429,7 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                                     className="absolute top-0 left-0 h-full bg-blue-100 dark:bg-blue-900 transition-all duration-500 rounded-xl"
                                     style={{ width: (isOwner || hasVoted) ? `${percentage}%` : '0%' }}
                                   />
-                                  
+
                                   {/* Content */}
                                   <div className="relative flex justify-between items-center font-medium">
                                     <span className="text-gray-900 dark:text-white">{option.text}</span>
@@ -450,7 +447,7 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                             );
                           })}
                         </div>
-                        
+
                         {/* Poll Footer */}
                         <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
                           <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
@@ -492,22 +489,22 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                 </button>
               </div>
             </div>
-            
+
             <form onSubmit={handleCreatePoll} className="p-6 space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Poll Question *
                 </label>
-                <input 
-                  type="text" 
-                  placeholder="Enter your poll question" 
-                  value={newPoll.questionText} 
-                  onChange={(e) => setNewPoll({ ...newPoll, questionText: e.target.value })} 
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white" 
-                  required 
+                <input
+                  type="text"
+                  placeholder="Enter your poll question"
+                  value={newPoll.questionText}
+                  onChange={(e) => setNewPoll({ ...newPoll, questionText: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                   Options *
@@ -518,19 +515,19 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                       <span className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-400">
                         {index + 1}
                       </span>
-                      <input 
-                        type="text" 
-                        placeholder={`Option ${index + 1}`} 
-                        value={option} 
-                        onChange={(e) => handlePollOptionChange(index, e.target.value)} 
-                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white" 
+                      <input
+                        type="text"
+                        placeholder={`Option ${index + 1}`}
+                        value={option}
+                        onChange={(e) => handlePollOptionChange(index, e.target.value)}
+                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                       />
                     </div>
                   ))}
                 </div>
-                <button 
-                  type="button" 
-                  onClick={handleAddPollOption} 
+                <button
+                  type="button"
+                  onClick={handleAddPollOption}
                   className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,17 +536,17 @@ export default function EventQAPage({ params }: { params: Promise<{ eventId: str
                   Add Option
                 </button>
               </div>
-              
+
               <div className="flex gap-3 pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setShowPollModal(false)} 
+                <button
+                  type="button"
+                  onClick={() => setShowPollModal(false)}
                   className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg transition-all font-medium"
                 >
                   Create Poll
